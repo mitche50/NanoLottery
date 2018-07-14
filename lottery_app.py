@@ -21,7 +21,7 @@ if __name__ == "__main__":
     while True:
         # First, check if current lottery is duedate
         for lottery in Lottery.select().order_by(Lottery.endblock.desc()):
-            lottery = lottery
+            prior_lottery = lottery
             break
         current_block = fair.last_blockchain()
         if current_block + config["block_limit"] >= lottery.endblock:
@@ -44,11 +44,11 @@ if __name__ == "__main__":
             blocks = round(minutes/9.5)
 
             # Create new lottery
-            new_lottery = Lottery.create(id=lottery.id+1, time=datetime.now(), endblock=current_block+blocks)
+            new_lottery = Lottery.create(id=prior_lottery.id+1, time=datetime.now(), endblock=current_block+blocks)
             new_lottery.save()
             print(f'New lottery created. Endblock {new_lottery.endblock}')
-            lottery.due = True
-            lottery.save()
+            prior_lottery.due = True
+            prior_lottery.save()
 
         # Fix due lotteries
         # Check if any lotteries can be fixed:
@@ -121,7 +121,7 @@ if __name__ == "__main__":
                     lottery.due = False
                     lottery.save()
         for lottery in Lottery.select().order_by(Lottery.endblock.desc()):
-            lottery = lottery
+            curr_lottery = lottery
             break
         # Get pending transactions
         pending = rpc.pending(config["account"])
@@ -139,7 +139,7 @@ if __name__ == "__main__":
                     print(f'{rpc_account} wants to buy')
                     # Find last ticket
                     sold_tickets = []
-                    for ticket in lottery.tickets:
+                    for ticket in curr_lottery.tickets:
                         sold_tickets.append(ticket.ticket)
                     if not sold_tickets:
                         sold_tickets.append(0)
@@ -147,8 +147,8 @@ if __name__ == "__main__":
                     print(sold_tickets)
                     for i in range(tickets_bought):
                         ticket_number = max(sold_tickets) + 1 + i
-                        print(f'Sold: {ticket_number} to endblock {lottery.endblock}')
-                        ticket = Ticket.create(ticket=ticket_number, lottery=lottery,
+                        print(f'Sold: {ticket_number} to endblock {curr_lottery.endblock}')
+                        ticket = Ticket.create(id=curr_lottery.id, ticket=ticket_number, lottery=curr_lottery,
                                                time=datetime.now(), account=rpc_account, hash=block)
                         ticket.save()
                     rpc.receive(config["wallet"], config["account"], block)
